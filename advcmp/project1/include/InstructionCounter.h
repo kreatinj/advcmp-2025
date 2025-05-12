@@ -6,7 +6,8 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/IR/PassManager.h"
 
-class InstructionCounter : public llvm::AnalysisInfoMixin<InstructionCounter> {
+class InstructionCounter : public llvm::AnalysisInfoMixin<InstructionCounter>
+{
 public:
   llvm::PreservedAnalyses run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &FAM);
@@ -15,7 +16,6 @@ public:
 private:
   static llvm::AnalysisKey Key;
   llvm::StringMap<int> InstructionCounter;
-
 };
 
 #endif // INSTRUCTIONCOUNTER_H

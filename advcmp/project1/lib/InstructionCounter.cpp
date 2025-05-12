@@ -8,14 +8,23 @@
 using namespace llvm;
 
 PreservedAnalyses InstructionCounter::run(Function &F,
-                                          FunctionAnalysisManager &FAM) {
+                                          FunctionAnalysisManager &FAM)
+{
   //******************************** TODO ********************************
-
+  for (BasicBlock &BB : F)
+  {
+    for (Instruction &I : BB)
+    {
+      StringRef OpcodeName = I.getOpcodeName();
+      InstructionCounter[OpcodeName]++;
+    }
+  }
   //****************************** TODO END ******************************
 
   errs() << "Instruction hit counts\n";
   errs() << "-----------------------------\n";
-  for (auto &InstructionCount : InstructionCounter) {
+  for (auto &InstructionCount : InstructionCounter)
+  {
     errs() << InstructionCount.getKey() << " : " << InstructionCount.getValue()
            << "\n";
   }
@@ -29,32 +38,37 @@ PreservedAnalyses InstructionCounter::run(Function &F,
  ******************************************************************************/
 
 // Hiding callback functions for registration steps inside anonymous namespace.
-namespace {
-/**
- * Register pass to the pipeline.
- *
- * Registered pass can be called from `opt` by its name.
- */
-bool regInstructionCounterToPipeline(StringRef Name, FunctionPassManager &FPM,
-                                     ArrayRef<PassBuilder::PipelineElement>) {
-  if (Name != "instruction-counter")
-    return false;
-  FPM.addPass(InstructionCounter());
-  return true;
-}
+namespace
+{
+  /**
+   * Register pass to the pipeline.
+   *
+   * Registered pass can be called from `opt` by its name.
+   */
+  bool regInstructionCounterToPipeline(StringRef Name, FunctionPassManager &FPM,
+                                       ArrayRef<PassBuilder::PipelineElement>)
+  {
+    if (Name != "instruction-counter")
+      return false;
+    FPM.addPass(InstructionCounter());
+    return true;
+  }
 
-void PBHook(PassBuilder &PB) {
-  PB.registerPipelineParsingCallback(regInstructionCounterToPipeline);
-}
+  void PBHook(PassBuilder &PB)
+  {
+    PB.registerPipelineParsingCallback(regInstructionCounterToPipeline);
+  }
 
-PassPluginLibraryInfo getInstructionCounterPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "Advanced Compilers - Instruction Counter",
-          LLVM_VERSION_STRING, PBHook};
-}
+  PassPluginLibraryInfo getInstructionCounterPluginInfo()
+  {
+    return {LLVM_PLUGIN_API_VERSION, "Advanced Compilers - Instruction Counter",
+            LLVM_VERSION_STRING, PBHook};
+  }
 } // namespace
 
 // Pass registeration.
 extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK
-llvmGetPassPluginInfo() {
+llvmGetPassPluginInfo()
+{
   return getInstructionCounterPluginInfo();
 }
