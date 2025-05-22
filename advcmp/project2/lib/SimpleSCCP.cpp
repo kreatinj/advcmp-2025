@@ -15,21 +15,28 @@ using namespace llvm;
 
 AnalysisKey SimpleSCCPAnalysis::Key;
 
-ConstantValue ConstantValue::meet(const ConstantValue &Other) const {
+ConstantValue ConstantValue::meet(const ConstantValue &Other) const
+{
   assert(!(IsTop && IsBot) && "Can't be both Top and Bottom at same time.");
   assert(!(Other.IsTop && Other.IsBot) &&
          "Can't be both Top and Bottom at same time.");
 
-  if (IsTop) {
+  if (IsTop)
+  {
     return Other;
-  } else if (Other.IsTop || *this == Other) {
+  }
+  else if (Other.IsTop || *this == Other)
+  {
     return *this;
-  } else {
+  }
+  else
+  {
     return bot();
   }
 }
 
-bool ConstantValue::operator==(const ConstantValue &Other) const {
+bool ConstantValue::operator==(const ConstantValue &Other) const
+{
   bool IsEqualType = IsTop == Other.IsTop && IsBot == Other.IsBot;
 
   if (!IsEqualType)
@@ -39,11 +46,13 @@ bool ConstantValue::operator==(const ConstantValue &Other) const {
   return true;
 }
 
-bool ConstantValue::operator!=(const ConstantValue &Other) const {
+bool ConstantValue::operator!=(const ConstantValue &Other) const
+{
   return !((*this) == Other);
 }
 
-bool CFGEdge::operator<(const struct CFGEdge &Other) const {
+bool CFGEdge::operator<(const struct CFGEdge &Other) const
+{
   std::uintptr_t ThisFrom = reinterpret_cast<std::uintptr_t>(From);
   std::uintptr_t ThisTo = reinterpret_cast<std::uintptr_t>(To);
   std::uintptr_t OtherFrom = reinterpret_cast<std::uintptr_t>(Other.From);
@@ -57,7 +66,8 @@ bool CFGEdge::operator<(const struct CFGEdge &Other) const {
     return false;
 }
 
-bool CFGEdge::operator==(const struct CFGEdge &Other) const {
+bool CFGEdge::operator==(const struct CFGEdge &Other) const
+{
   if (From == Other.From && To == Other.To)
     return true;
   return false;
@@ -71,10 +81,20 @@ bool CFGEdge::operator==(const struct CFGEdge &Other) const {
  * (e.g., CFGWorkset, DataflowFacts, ...)
  */
 ConstantValue
-SimpleSCCPAnalysis::InstructionVisitor::visitPHINode(const PHINode &I) {
+SimpleSCCPAnalysis::InstructionVisitor::visitPHINode(const PHINode &I)
+{
   ConstantValue NewValue = ConstantValue::top();
   //******************************** ASSIGNMENT ********************************
-
+  // for (unsigned i = 0, e = I.getNumIncomingValues(); i != e; ++i)
+  // {
+  //   const llvm::BasicBlock *Pred = I.getIncomingBlock(i);
+  //   CFGEdge Edge = {Pred, I.getParent()};
+  //   if (!ThePass.isExecutableEdge(Edge))
+  //     continue;
+  //   const llvm::Value *Incoming = I.getIncomingValue(i);
+  //   ConstantValue IncomingValue = ThePass.getConstantValue(*Incoming);
+  //   NewValue = NewValue.meet(IncomingValue);
+  // }
   //****************************** ASSIGNMENT END ******************************
   return NewValue;
 }
@@ -91,21 +111,31 @@ SimpleSCCPAnalysis::InstructionVisitor::visitPHINode(const PHINode &I) {
  * (e.g., CFGWorkset, DataflowFacts, ...)
  */
 ConstantValue
-SimpleSCCPAnalysis::InstructionVisitor::visitBranchInst(const BranchInst &I) {
-  if (I.isConditional()) {
+SimpleSCCPAnalysis::InstructionVisitor::visitBranchInst(const BranchInst &I)
+{
+  if (I.isConditional())
+  {
     Value &Condition = *I.getCondition();
     ConstantValue C = ThePass.getConstantValue(Condition);
 
-    if (C.isConstant()) {
-      if (C.value() != 0) {
+    if (C.isConstant())
+    {
+      if (C.value() != 0)
+      {
         ThePass.CFGWorkset.insert({I.getParent(), I.getSuccessor(0)});
-      } else {
+      }
+      else
+      {
         ThePass.CFGWorkset.insert({I.getParent(), I.getSuccessor(1)});
       }
-    } else {
+    }
+    else
+    {
       ThePass.appendExecutableSuccessors(I);
     }
-  } else {
+  }
+  else
+  {
     ThePass.appendExecutableSuccessors(I);
   }
   return ConstantValue::bot();
@@ -119,7 +149,8 @@ SimpleSCCPAnalysis::InstructionVisitor::visitBranchInst(const BranchInst &I) {
  * (e.g., CFGWorkset, DataflowFacts, ...)
  */
 ConstantValue
-SimpleSCCPAnalysis::InstructionVisitor::visitICmpInst(const ICmpInst &I) {
+SimpleSCCPAnalysis::InstructionVisitor::visitICmpInst(const ICmpInst &I)
+{
   int64_t Int1, Int2, Result;
   Value &Operand1 = *I.getOperand(0);
   Value &Operand2 = *I.getOperand(1);
@@ -135,7 +166,8 @@ SimpleSCCPAnalysis::InstructionVisitor::visitICmpInst(const ICmpInst &I) {
   Int1 = CV1.value();
   Int2 = CV2.value();
 
-  switch (I.getPredicate()) {
+  switch (I.getPredicate())
+  {
   case CmpInst::ICMP_SLT:
   case CmpInst::ICMP_ULT:
     Result = Int1 < Int2 ? 1 : 0;
@@ -173,7 +205,8 @@ SimpleSCCPAnalysis::InstructionVisitor::visitICmpInst(const ICmpInst &I) {
  * (e.g., CFGWorkset, DataflowFacts, ...)
  */
 ConstantValue SimpleSCCPAnalysis::InstructionVisitor::visitBinaryOperator(
-    const BinaryOperator &I) {
+    const BinaryOperator &I)
+{
   int64_t Int1, Int2, Result;
   Value &Operand1 = *I.getOperand(0);
   Value &Operand2 = *I.getOperand(1);
@@ -189,7 +222,8 @@ ConstantValue SimpleSCCPAnalysis::InstructionVisitor::visitBinaryOperator(
   Int1 = CV1.value();
   Int2 = CV2.value();
 
-  switch (I.getOpcode()) {
+  switch (I.getOpcode())
+  {
   case Instruction::BinaryOps::Add:
     Result = Int1 + Int2;
     break;
@@ -222,12 +256,14 @@ ConstantValue SimpleSCCPAnalysis::InstructionVisitor::visitBinaryOperator(
  * Default fallback function of `visit`.
  */
 ConstantValue
-SimpleSCCPAnalysis::InstructionVisitor::visitInstruction(const Instruction &I) {
+SimpleSCCPAnalysis::InstructionVisitor::visitInstruction(const Instruction &I)
+{
   return ConstantValue::bot();
 }
 
 SimpleSCCPAnalysis::DataflowFactsTy
-SimpleSCCPAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
+SimpleSCCPAnalysis::run(Function &F, FunctionAnalysisManager &FAM)
+{
   analyze(F);
   return DataflowFacts;
 }
@@ -239,17 +275,74 @@ SimpleSCCPAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
  * You can check LLVM's implementation at
  * https://github.com/llvm/llvm-project/blob/llvmorg-17.0.6/llvm/lib/Transforms/Utils/SCCPSolver.cpp#L1833
  */
-void SimpleSCCPAnalysis::analyze(Function &F) {
+void SimpleSCCPAnalysis::analyze(Function &F)
+{
   CFGWorkset.clear();
   CFGWorkset.insert(CFGEdge{nullptr, &F.getEntryBlock()});
   SSAWorkset.clear();
   ExecutableEdges.clear();
   DataflowFacts.clear();
 
-  while (!CFGWorkset.empty() || !SSAWorkset.empty()) {
+  while (!CFGWorkset.empty() || !SSAWorkset.empty())
+  {
     //* ASSIGNMENT - Algorithm 1
     //******************************* ASSIGNMENT *******************************
-    
+
+    break;
+    // if (!CFGWorkset.empty())
+    // {
+    //   auto It = CFGWorkset.begin();
+    //   CFGEdge Edge = *It;
+    //   CFGWorkset.erase(It);
+
+    //   ExecutableEdges.insert(Edge);
+
+    //   BasicBlock *ToBB = const_cast<BasicBlock *>(Edge.To);
+    //   if (!ToBB)
+    //     continue;
+
+    //   // PHI 노드 방문
+    //   for (auto &I : *ToBB)
+    //   {
+    //     if (auto *PN = dyn_cast<PHINode>(&I))
+    //     {
+    //       visit(I);
+    //     }
+    //     else
+    //     {
+    //       break;
+    //     }
+    //   }
+
+    //   // 첫 방문이면 블록 내 명령어 visit 및 successor edge 추가
+    //   if (isFirstVisit(*ToBB))
+    //   {
+    //     for (auto &I : *ToBB)
+    //     {
+    //       visit(I);
+    //     }
+    //     if (auto *Br = dyn_cast<BranchInst>(ToBB->getTerminator()))
+    //     {
+    //       for (unsigned i = 0; i < Br->getNumSuccessors(); ++i)
+    //       {
+    //         BasicBlock *Succ = Br->getSuccessor(i);
+    //         CFGEdge SuccEdge = {ToBB, Succ};
+    //         if (!isExecutableEdge(SuccEdge))
+    //         {
+    //           CFGWorkset.insert(SuccEdge);
+    //         }
+    //       }
+    //     }
+    //   }
+    // }
+    // else if (!SSAWorkset.empty())
+    // {
+    //   auto It = SSAWorkset.begin();
+    //   Instruction *I = *It;
+    //   SSAWorkset.erase(It);
+
+    //   visit(*I);
+    // }
     //***************************** ASSIGNMENT END *****************************
   }
 }
@@ -257,7 +350,8 @@ void SimpleSCCPAnalysis::analyze(Function &F) {
 /**
  * Visit an instruction. (`analyze`-helper)
  */
-void SimpleSCCPAnalysis::visit(const Instruction &I) {
+void SimpleSCCPAnalysis::visit(const Instruction &I)
+{
   ConstantValue NewLatticeValue =
       TheVisitor.visit(const_cast<Instruction &>(I));
   // Set default value.
@@ -265,16 +359,34 @@ void SimpleSCCPAnalysis::visit(const Instruction &I) {
 
   //* ASSIGNMENT - Algorithm 2
   //******************************** ASSIGNMENT ********************************
+  // OldLatticeValue = DataflowFacts[&I]; // 기존 lattice 값(없으면 TOP)
 
+  // if (NewLatticeValue != OldLatticeValue)
+  // {
+  //   // 값이 바뀌었으면 갱신
+  //   DataflowFacts[&I] = NewLatticeValue;
+
+  //   // 해당 명령어의 SSA 사용자(Use)들을 SSAWorkset에 추가
+  //   for (const llvm::User *U : I.users())
+  //   {
+  //     if (const llvm::Instruction *UserInst = llvm::dyn_cast<llvm::Instruction>(U))
+  //     {
+  //       SSAWorkset.insert(const_cast<llvm::Instruction *>(UserInst));
+  //     }
+  //   }
+  // }
   //****************************** ASSIGNMENT END ******************************
 }
 
-bool SimpleSCCPAnalysis::isFirstVisit(const BasicBlock &BB) {
+bool SimpleSCCPAnalysis::isFirstVisit(const BasicBlock &BB)
+{
   unsigned int ExecutableIncomingEdgeCount = 0;
   const BasicBlock *TheBlock = &BB;
 
-  for (const auto &Edge : ExecutableEdges) {
-    if (Edge.To == TheBlock) {
+  for (const auto &Edge : ExecutableEdges)
+  {
+    if (Edge.To == TheBlock)
+    {
       ++ExecutableIncomingEdgeCount;
       if (ExecutableIncomingEdgeCount > 1)
         return false;
@@ -285,22 +397,27 @@ bool SimpleSCCPAnalysis::isFirstVisit(const BasicBlock &BB) {
   return true;
 }
 
-bool SimpleSCCPAnalysis::isExecutableBlock(const BasicBlock &BB) {
+bool SimpleSCCPAnalysis::isExecutableBlock(const BasicBlock &BB)
+{
   const BasicBlock *TheBlock = &BB;
 
-  for (const auto &Edge : ExecutableEdges) {
+  for (const auto &Edge : ExecutableEdges)
+  {
     if (Edge.To == TheBlock)
       return true;
   }
   return false;
 }
 
-bool SimpleSCCPAnalysis::isExecutableEdge(const CFGEdge &CE) {
+bool SimpleSCCPAnalysis::isExecutableEdge(const CFGEdge &CE)
+{
   return ExecutableEdges.count(CE) != 0;
 }
 
-void SimpleSCCPAnalysis::appendExecutableSuccessors(const BranchInst &I) {
-  for (const BasicBlock *BB : I.successors()) {
+void SimpleSCCPAnalysis::appendExecutableSuccessors(const BranchInst &I)
+{
+  for (const BasicBlock *BB : I.successors())
+  {
     CFGEdge Candidate = CFGEdge{I.getParent(), BB};
     if (ExecutableEdges.count(Candidate) == 0)
       CFGWorkset.insert(Candidate);
@@ -314,7 +431,8 @@ void SimpleSCCPAnalysis::appendExecutableSuccessors(const BranchInst &I) {
  * Else, search the corresponding `ConstantValue` from the `DataflowFacts`.
  * If there is no cue about the given `Value`, just return the TOP.
  */
-ConstantValue SimpleSCCPAnalysis::getConstantValue(const Value &Value) {
+ConstantValue SimpleSCCPAnalysis::getConstantValue(const Value &Value)
+{
   if (const ConstantInt *CI = dyn_cast<ConstantInt>(&Value))
     return ConstantValue(CI->getSExtValue());
 
@@ -326,13 +444,15 @@ ConstantValue SimpleSCCPAnalysis::getConstantValue(const Value &Value) {
 }
 
 PreservedAnalyses SimpleSCCPPrinter::run(Function &F,
-                                         FunctionAnalysisManager &FAM) {
+                                         FunctionAnalysisManager &FAM)
+{
   auto &DataflowFacts = FAM.getResult<SimpleSCCPAnalysis>(F);
   ROS << DataflowFacts;
   return PreservedAnalyses::all();
 }
 
-raw_ostream &operator<<(raw_ostream &ROS, const CFGEdge &CE) {
+raw_ostream &operator<<(raw_ostream &ROS, const CFGEdge &CE)
+{
   std::string From = "NULL";
   std::string To = "NULL";
 
@@ -346,7 +466,8 @@ raw_ostream &operator<<(raw_ostream &ROS, const CFGEdge &CE) {
   return ROS;
 }
 
-raw_ostream &operator<<(raw_ostream &ROS, const ConstantValue &C) {
+raw_ostream &operator<<(raw_ostream &ROS, const ConstantValue &C)
+{
   if (C.isTop())
     ROS << "{ TOP }";
   else if (C.isBot())
@@ -357,8 +478,10 @@ raw_ostream &operator<<(raw_ostream &ROS, const ConstantValue &C) {
 }
 
 raw_ostream &operator<<(raw_ostream &ROS,
-                        const SimpleSCCPAnalysis::DataflowFactsTy &DF) {
-  for (const auto &Entry : DF) {
+                        const SimpleSCCPAnalysis::DataflowFactsTy &DF)
+{
+  for (const auto &Entry : DF)
+  {
     if (!Entry.getSecond().isConstant())
       continue;
     errs() << getId(Entry.getFirst()) << " : " << Entry.getSecond() << "\n";
@@ -371,48 +494,55 @@ raw_ostream &operator<<(raw_ostream &ROS,
  ******************************************************************************/
 
 // Hiding callback functions for registration steps inside anonymous namespace.
-namespace {
-/**
- * Register pass to the pipeline.
- *
- * Registered pass can be called from `opt` by its name.
- */
-bool regSimpleSCCPPrinterToPipeline(StringRef Name, FunctionPassManager &FPM,
-                                    ArrayRef<PassBuilder::PipelineElement>) {
-  // Check called name.
-  // This name will be called via `-passes=(Name)`
-  // e.g., opt -passes='print<simple-sccp>' ...
-  if (Name != "print<simple-sccp>")
-    return false;
-  FPM.addPass(SimpleSCCPPrinter(errs()));
-  return true;
-}
+namespace
+{
+  /**
+   * Register pass to the pipeline.
+   *
+   * Registered pass can be called from `opt` by its name.
+   */
+  bool regSimpleSCCPPrinterToPipeline(StringRef Name, FunctionPassManager &FPM,
+                                      ArrayRef<PassBuilder::PipelineElement>)
+  {
+    // Check called name.
+    // This name will be called via `-passes=(Name)`
+    // e.g., opt -passes='print<simple-sccp>' ...
+    if (Name != "print<simple-sccp>")
+      return false;
+    FPM.addPass(SimpleSCCPPrinter(errs()));
+    return true;
+  }
 
-/**
- * Register pass to the analysis manager.
- *
- * Registered pass' result can be fetched by `FAM.getResult<Pass>(F)`.
- */
-void regSimpleSCCPToAM(FunctionAnalysisManager &FAM) {
-  FAM.registerPass([&]() { return SimpleSCCPAnalysis(); });
-}
+  /**
+   * Register pass to the analysis manager.
+   *
+   * Registered pass' result can be fetched by `FAM.getResult<Pass>(F)`.
+   */
+  void regSimpleSCCPToAM(FunctionAnalysisManager &FAM)
+  {
+    FAM.registerPass([&]()
+                     { return SimpleSCCPAnalysis(); });
+  }
 
-void PBHook(PassBuilder &PB) {
-  // Register callbacks to the pass builder.
-  PB.registerAnalysisRegistrationCallback(regSimpleSCCPToAM);
-  PB.registerPipelineParsingCallback(regSimpleSCCPPrinterToPipeline);
-}
+  void PBHook(PassBuilder &PB)
+  {
+    // Register callbacks to the pass builder.
+    PB.registerAnalysisRegistrationCallback(regSimpleSCCPToAM);
+    PB.registerPipelineParsingCallback(regSimpleSCCPPrinterToPipeline);
+  }
 
-PassPluginLibraryInfo getSCCPPrinterPluginInfo() {
-  return {
-      LLVM_PLUGIN_API_VERSION,
-      "Advanced Compilers - Simple Sparse Conditional Constants Propagation",
-      LLVM_VERSION_STRING, PBHook};
-}
+  PassPluginLibraryInfo getSCCPPrinterPluginInfo()
+  {
+    return {
+        LLVM_PLUGIN_API_VERSION,
+        "Advanced Compilers - Simple Sparse Conditional Constants Propagation",
+        LLVM_VERSION_STRING, PBHook};
+  }
 } // namespace
 
 // Pass registeration.
 extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK
-llvmGetPassPluginInfo() {
+llvmGetPassPluginInfo()
+{
   return getSCCPPrinterPluginInfo();
 }
