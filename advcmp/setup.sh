@@ -24,5 +24,5 @@ cmake -G Ninja ../llvm \
 ninja
 ninja install
 
-echo "tmp/llvm/lib" | sudo tee -a /etc/ld.so.conf.d/llvm.conf
+echo "tmp/llvm/lib" | sudo tee /etc/ld.so.conf.d/llvm.conf
 sudo ldconfig
