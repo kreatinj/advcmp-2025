@@ -85,16 +85,17 @@ SimpleSCCPAnalysis::InstructionVisitor::visitPHINode(const PHINode &I)
 {
   ConstantValue NewValue = ConstantValue::top();
   //******************************** ASSIGNMENT ********************************
-  // for (unsigned i = 0, e = I.getNumIncomingValues(); i != e; ++i)
-  // {
-  //   const llvm::BasicBlock *Pred = I.getIncomingBlock(i);
-  //   CFGEdge Edge = {Pred, I.getParent()};
-  //   if (!ThePass.isExecutableEdge(Edge))
-  //     continue;
-  //   const llvm::Value *Incoming = I.getIncomingValue(i);
-  //   ConstantValue IncomingValue = ThePass.getConstantValue(*Incoming);
-  //   NewValue = NewValue.meet(IncomingValue);
-  // }
+  const auto BB = I.getParent();
+  for (unsigned i = 0; i < I.getNumIncomingValues(); ++i)
+  {
+    const auto Pred = I.getIncomingBlock(i);
+    auto edge = CFGEdge{Pred, BB};
+    if (I.getBasicBlockIndex(BB))
+    {
+      const auto V = I.getIncomingValue(i);
+      NewValue = NewValue.meet(ThePass.getConstantValue(*V));
+    }
+  }
   //****************************** ASSIGNMENT END ******************************
   return NewValue;
 }
@@ -288,61 +289,49 @@ void SimpleSCCPAnalysis::analyze(Function &F)
     //* ASSIGNMENT - Algorithm 1
     //******************************* ASSIGNMENT *******************************
 
-    break;
-    // if (!CFGWorkset.empty())
-    // {
-    //   auto It = CFGWorkset.begin();
-    //   CFGEdge Edge = *It;
-    //   CFGWorkset.erase(It);
+    if (!CFGWorkset.empty())
+    {
+      const auto x = *CFGWorkset.begin();
+      CFGWorkset.erase(x);
+      const auto B = x.To;
 
-    //   ExecutableEdges.insert(Edge);
+      ExecutableEdges.insert(x);
+      for (const auto &I : *B)
+        if (const auto PHI = dyn_cast<PHINode>(&I))
+          TheVisitor.visitPHINode(*PHI);
 
-    //   BasicBlock *ToBB = const_cast<BasicBlock *>(Edge.To);
-    //   if (!ToBB)
-    //     continue;
+      if (isFirstVisit(*B))
+        for (const auto &I : *B)
+          visit(I);
 
-    //   // PHI 노드 방문
-    //   for (auto &I : *ToBB)
-    //   {
-    //     if (auto *PN = dyn_cast<PHINode>(&I))
-    //     {
-    //       visit(I);
-    //     }
-    //     else
-    //     {
-    //       break;
-    //     }
-    //   }
+      const auto uniqueSuccessor = B->getUniqueSuccessor();
+      if (uniqueSuccessor != nullptr && !isExecutableBlock(*uniqueSuccessor))
+        CFGWorkset.insert(CFGEdge{B, uniqueSuccessor});
+    }
+    else if (!SSAWorkset.empty())
+    {
+      const auto x = *SSAWorkset.begin();
+      SSAWorkset.erase(x);
+      if (x->getOpcode() == Instruction::PHI)
+        visit(*x);
+      else
+      {
+        const auto B = x->getParent();
+        bool hasExecutableIncomingEdge = false;
+        for (const auto pred : predecessors(B))
+        {
+          const auto edge = CFGEdge{pred, B};
+          if (isExecutableEdge(edge))
+          {
+            hasExecutableIncomingEdge = true;
+            break;
+          }
+        }
+        if (hasExecutableIncomingEdge)
+          visit(*x);
+      }
+    }
 
-    //   // 첫 방문이면 블록 내 명령어 visit 및 successor edge 추가
-    //   if (isFirstVisit(*ToBB))
-    //   {
-    //     for (auto &I : *ToBB)
-    //     {
-    //       visit(I);
-    //     }
-    //     if (auto *Br = dyn_cast<BranchInst>(ToBB->getTerminator()))
-    //     {
-    //       for (unsigned i = 0; i < Br->getNumSuccessors(); ++i)
-    //       {
-    //         BasicBlock *Succ = Br->getSuccessor(i);
-    //         CFGEdge SuccEdge = {ToBB, Succ};
-    //         if (!isExecutableEdge(SuccEdge))
-    //         {
-    //           CFGWorkset.insert(SuccEdge);
-    //         }
-    //       }
-    //     }
-    //   }
-    // }
-    // else if (!SSAWorkset.empty())
-    // {
-    //   auto It = SSAWorkset.begin();
-    //   Instruction *I = *It;
-    //   SSAWorkset.erase(It);
-
-    //   visit(*I);
-    // }
     //***************************** ASSIGNMENT END *****************************
   }
 }
@@ -359,22 +348,52 @@ void SimpleSCCPAnalysis::visit(const Instruction &I)
 
   //* ASSIGNMENT - Algorithm 2
   //******************************** ASSIGNMENT ********************************
-  // OldLatticeValue = DataflowFacts[&I]; // 기존 lattice 값(없으면 TOP)
 
-  // if (NewLatticeValue != OldLatticeValue)
-  // {
-  //   // 값이 바뀌었으면 갱신
-  //   DataflowFacts[&I] = NewLatticeValue;
+  if (const auto PHI = dyn_cast<PHINode>(&I))
+  {
+    NewLatticeValue =
+        TheVisitor.visitPHINode(*PHI);
+  }
+  else if (const auto BI = dyn_cast<BranchInst>(&I))
+  {
+    NewLatticeValue =
+        TheVisitor.visitBranchInst(*BI);
+  }
+  else if (const auto CI = dyn_cast<ICmpInst>(&I))
+  {
+    NewLatticeValue =
+        TheVisitor.visitICmpInst(*CI);
+  }
+  else if (const auto BO = dyn_cast<BinaryOperator>(&I))
+  {
+    NewLatticeValue =
+        TheVisitor.visitBinaryOperator(*BO);
+  }
+  else
+  {
+    NewLatticeValue =
+        TheVisitor.visitInstruction(I);
+  }
 
-  //   // 해당 명령어의 SSA 사용자(Use)들을 SSAWorkset에 추가
-  //   for (const llvm::User *U : I.users())
-  //   {
-  //     if (const llvm::Instruction *UserInst = llvm::dyn_cast<llvm::Instruction>(U))
-  //     {
-  //       SSAWorkset.insert(const_cast<llvm::Instruction *>(UserInst));
-  //     }
-  //   }
-  // }
+  // if dataflow information of I had been changed then
+  //   append all outgoing SSA edges of I to SSAWorkset
+
+  const auto vI = &const_cast<Instruction &>(I);
+  if (!NewLatticeValue.isTop())
+    DataflowFacts.try_emplace(vI, NewLatticeValue);
+
+  const auto OldLatticeValueIt = DataflowFacts.find(&I);
+  if (OldLatticeValueIt != DataflowFacts.end())
+    OldLatticeValue = OldLatticeValueIt->second;
+  if (NewLatticeValue != OldLatticeValue)
+  {
+    for (const auto succ : successors(vI))
+    {
+      if (isExecutableBlock(*succ))
+        SSAWorkset.insert(succ->begin(), succ->end());
+    }
+  }
+
   //****************************** ASSIGNMENT END ******************************
 }
 
