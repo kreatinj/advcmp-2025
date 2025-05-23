@@ -2,7 +2,7 @@ cd ~
 git clone https://github.com/llvm/llvm-project.git
 cd llvm-project
 git pull
-git checkout -t release/17.x
+git checkout release/17.x
 
 cd ~
 mkdir -p llvm-project/build
