@@ -11,11 +11,11 @@ PreservedAnalyses InstructionCounter::run(Function &F,
                                           FunctionAnalysisManager &FAM)
 {
   //******************************** TODO ********************************
-  for (BasicBlock &BB : F)
+  for (const auto &BB : F)
   {
-    for (Instruction &I : BB)
+    for (const auto &I : BB)
     {
-      StringRef OpcodeName = I.getOpcodeName();
+      const auto OpcodeName = I.getOpcodeName();
       InstructionCounter[OpcodeName]++;
     }
   }
