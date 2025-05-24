@@ -299,13 +299,14 @@ void SimpleSCCPAnalysis::analyze(Function &F)
       const auto B = x.To;
 
       ExecutableEdges.insert(x);
-      for (const auto &I : *B)
-        if (const auto PHI = dyn_cast<PHINode>(&I))
-          TheVisitor.visitPHINode(*PHI);
+
+      for (const auto &PHI : B->phis())
+        TheVisitor.visitPHINode(PHI);
 
       if (isFirstVisit(*B))
         for (const auto &I : *B)
-          visit(I);
+          if (I.getOpcode() != Instruction::PHI)
+            visit(I);
 
       const auto uniqueSuccessor = B->getUniqueSuccessor();
       if (uniqueSuccessor != nullptr && !isExecutableBlock(*uniqueSuccessor))
@@ -318,22 +319,8 @@ void SimpleSCCPAnalysis::analyze(Function &F)
 
       if (x->getOpcode() == Instruction::PHI)
         visit(*x);
-      else
-      {
-        const auto B = x->getParent();
-        bool hasExecutableIncomingEdge = false;
-        for (const auto pred : predecessors(B))
-        {
-          const auto edge = CFGEdge{pred, B};
-          if (isExecutableEdge(edge))
-          {
-            hasExecutableIncomingEdge = true;
-            break;
-          }
-        }
-        if (hasExecutableIncomingEdge)
-          visit(*x);
-      }
+      else if (isExecutableBlock(*x->getParent()))
+        visit(*x);
     }
 
     //***************************** ASSIGNMENT END *****************************
@@ -354,22 +341,6 @@ void SimpleSCCPAnalysis::visit(const Instruction &I)
   //******************************** ASSIGNMENT ********************************
 
   OldLatticeValue = getConstantValue(I);
-
-  if (const auto PHI = dyn_cast<PHINode>(&I))
-    NewLatticeValue =
-        TheVisitor.visitPHINode(*PHI);
-  else if (const auto BI = dyn_cast<BranchInst>(&I))
-    NewLatticeValue =
-        TheVisitor.visitBranchInst(*BI);
-  else if (const auto CI = dyn_cast<ICmpInst>(&I))
-    NewLatticeValue =
-        TheVisitor.visitICmpInst(*CI);
-  else if (const auto BO = dyn_cast<BinaryOperator>(&I))
-    NewLatticeValue =
-        TheVisitor.visitBinaryOperator(*BO);
-  else
-    NewLatticeValue =
-        TheVisitor.visitInstruction(I);
 
   if (NewLatticeValue != OldLatticeValue)
   {
