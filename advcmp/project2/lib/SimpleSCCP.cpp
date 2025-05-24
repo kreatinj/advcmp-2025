@@ -351,6 +351,8 @@ void SimpleSCCPAnalysis::visit(const Instruction &I)
   //* ASSIGNMENT - Algorithm 2
   //******************************** ASSIGNMENT ********************************
 
+  OldLatticeValue = getConstantValue(I);
+
   if (const auto PHI = dyn_cast<PHINode>(&I))
     NewLatticeValue =
         TheVisitor.visitPHINode(*PHI);
@@ -367,23 +369,14 @@ void SimpleSCCPAnalysis::visit(const Instruction &I)
     NewLatticeValue =
         TheVisitor.visitInstruction(I);
 
-  // if dataflow information of I had been changed then
-  //   append all outgoing SSA edges of I to SSAWorkset
-
-  const auto vI = &const_cast<Instruction &>(I);
-  if (!NewLatticeValue.isTop())
-    DataflowFacts.try_emplace(vI, NewLatticeValue);
-
-  const auto OldLatticeValueIt = DataflowFacts.find(&I);
-  if (OldLatticeValueIt != DataflowFacts.end())
-    OldLatticeValue = OldLatticeValueIt->second;
   if (NewLatticeValue != OldLatticeValue)
   {
-    for (const auto succ : successors(vI))
-    {
-      if (isExecutableBlock(*succ))
-        SSAWorkset.insert(succ->begin(), succ->end());
-    }
+    auto vI = &const_cast<Instruction &>(I);
+    DataflowFacts[vI] = NewLatticeValue;
+
+    for (const auto U : I.users())
+      if (const auto UserI = dyn_cast<Instruction>(U))
+        SSAWorkset.insert(UserI);
   }
 
   //****************************** ASSIGNMENT END ******************************
