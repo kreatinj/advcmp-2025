@@ -352,30 +352,20 @@ void SimpleSCCPAnalysis::visit(const Instruction &I)
   //******************************** ASSIGNMENT ********************************
 
   if (const auto PHI = dyn_cast<PHINode>(&I))
-  {
     NewLatticeValue =
         TheVisitor.visitPHINode(*PHI);
-  }
   else if (const auto BI = dyn_cast<BranchInst>(&I))
-  {
     NewLatticeValue =
         TheVisitor.visitBranchInst(*BI);
-  }
   else if (const auto CI = dyn_cast<ICmpInst>(&I))
-  {
     NewLatticeValue =
         TheVisitor.visitICmpInst(*CI);
-  }
   else if (const auto BO = dyn_cast<BinaryOperator>(&I))
-  {
     NewLatticeValue =
         TheVisitor.visitBinaryOperator(*BO);
-  }
   else
-  {
     NewLatticeValue =
         TheVisitor.visitInstruction(I);
-  }
 
   // if dataflow information of I had been changed then
   //   append all outgoing SSA edges of I to SSAWorkset
