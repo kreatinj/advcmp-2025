@@ -85,17 +85,19 @@ SimpleSCCPAnalysis::InstructionVisitor::visitPHINode(const PHINode &I)
 {
   ConstantValue NewValue = ConstantValue::top();
   //******************************** ASSIGNMENT ********************************
-  const auto BB = I.getParent();
-  for (unsigned i = 0; i < I.getNumIncomingValues(); ++i)
+
+  for (auto e = ThePass.ExecutableEdges.begin(); e != ThePass.ExecutableEdges.end(); ++e)
   {
-    const auto Pred = I.getIncomingBlock(i);
-    auto edge = CFGEdge{Pred, BB};
-    if (I.getBasicBlockIndex(BB))
+    const auto BB = (*e).From;
+
+    if (I.getBasicBlockIndex(BB) != -1)
     {
-      const auto V = I.getIncomingValue(i);
-      NewValue = NewValue.meet(ThePass.getConstantValue(*V));
+      const auto V = I.getIncomingValueForBlock(BB);
+      const auto ArgVal = ThePass.getConstantValue(*V);
+      NewValue = NewValue.meet(ArgVal);
     }
   }
+
   //****************************** ASSIGNMENT END ******************************
   return NewValue;
 }
