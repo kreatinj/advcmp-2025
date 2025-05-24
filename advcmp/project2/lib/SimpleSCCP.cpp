@@ -295,6 +295,7 @@ void SimpleSCCPAnalysis::analyze(Function &F)
     {
       const auto x = *CFGWorkset.begin();
       CFGWorkset.erase(x);
+
       const auto B = x.To;
 
       ExecutableEdges.insert(x);
@@ -314,6 +315,7 @@ void SimpleSCCPAnalysis::analyze(Function &F)
     {
       const auto x = *SSAWorkset.begin();
       SSAWorkset.erase(x);
+
       if (x->getOpcode() == Instruction::PHI)
         visit(*x);
       else
