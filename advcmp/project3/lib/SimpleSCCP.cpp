@@ -436,6 +436,132 @@ bool SimpleSCCPTransform::foldConstants(Function &F,
   IRBuilder<> IRB(F.getContext());
 
   //******************************** ASSIGNMENT ********************************
+  
+  // Step 1: Replace instructions with constant values
+  for (BasicBlock &BB : F) {
+    for (Instruction &I : BB) {
+      auto It = DataflowFacts.find(&I);
+      if (It != DataflowFacts.end() && It->second.isConstant()) {
+        // Create constant value to replace instruction
+        IRB.SetInsertPoint(&I);
+        Constant *ConstVal = ConstantInt::get(I.getType(), It->second.value());
+        
+        // Replace all uses of the instruction with the constant
+        I.replaceAllUsesWith(ConstVal);
+        AbondonedInst.push_back(&I);
+        madeChange = true;
+      }
+    }
+  }
+  
+  // Step 2: Handle conditional branches that became unconditional
+  for (BasicBlock &BB : F) {
+    BranchInst *BI = dyn_cast<BranchInst>(BB.getTerminator());
+    if (BI && BI->isConditional()) {
+      Value *Condition = BI->getCondition();
+      
+      // Check if condition is already a constant
+      ConstantInt *ConstCond = dyn_cast<ConstantInt>(Condition);
+      bool isConstantCondition = false;
+      int64_t condValue = 0;
+      
+      if (ConstCond) {
+        // Already a constant in IR
+        isConstantCondition = true;
+        condValue = ConstCond->getSExtValue();
+      } else {
+        // Check if we computed it as constant
+        auto It = DataflowFacts.find(Condition);
+        if (It != DataflowFacts.end() && It->second.isConstant()) {
+          isConstantCondition = true;
+          condValue = It->second.value();
+        }
+      }
+      
+      if (isConstantCondition) {
+        // Determine which successor to keep
+        BasicBlock *KeepSuccessor;
+        BasicBlock *RemoveSuccessor;
+        
+        if (condValue != 0) {
+          KeepSuccessor = BI->getSuccessor(0);
+          RemoveSuccessor = BI->getSuccessor(1);
+        } else {
+          KeepSuccessor = BI->getSuccessor(1);
+          RemoveSuccessor = BI->getSuccessor(0);
+        }
+        
+        // Remove this block as predecessor from the abandoned successor
+        RemoveSuccessor->removePredecessor(&BB);
+        
+        // Create unconditional branch to the kept successor
+        IRB.SetInsertPoint(BI);
+        IRB.CreateBr(KeepSuccessor);
+        
+        // Mark old branch for removal
+        AbondonedInst.push_back(BI);
+        madeChange = true;
+      }
+    }
+  }
+  
+  // Step 3: Clean up PHI nodes that may have lost predecessors
+  for (BasicBlock &BB : F) {
+    for (PHINode &PHI : BB.phis()) {
+      // Remove incoming values from blocks that are no longer predecessors
+      SmallVector<BasicBlock*, 4> ToRemove;
+      for (unsigned i = 0; i < PHI.getNumIncomingValues(); ++i) {
+        BasicBlock *IncomingBB = PHI.getIncomingBlock(i);
+        bool IsStillPredecessor = false;
+        for (BasicBlock *Pred : predecessors(&BB)) {
+          if (Pred == IncomingBB) {
+            IsStillPredecessor = true;
+            break;
+          }
+        }
+        if (!IsStillPredecessor) {
+          ToRemove.push_back(IncomingBB);
+        }
+      }
+      
+      for (BasicBlock *RemoveBB : ToRemove) {
+        PHI.removeIncomingValue(RemoveBB);
+        madeChange = true;
+      }
+      
+      // If PHI has only one incoming value, replace it with that value
+      if (PHI.getNumIncomingValues() == 1) {
+        PHI.replaceAllUsesWith(PHI.getIncomingValue(0));
+        AbondonedInst.push_back(&PHI);
+        madeChange = true;
+      }
+    }
+  }
+  
+  // Step 4: Remove abandoned instructions
+  for (Instruction *I : AbondonedInst) {
+    I->eraseFromParent();
+  }
+  
+  // Step 5: Identify and remove unreachable blocks
+  // Need to iterate until no more blocks are removed
+  bool removedBlocks = true;
+  while (removedBlocks) {
+    removedBlocks = false;
+    AbondonedBlock.clear();
+    
+    for (BasicBlock &BB : F) {
+      if (&BB != &F.getEntryBlock() && pred_empty(&BB)) {
+        AbondonedBlock.push_back(&BB);
+      }
+    }
+    
+    for (BasicBlock *BB : AbondonedBlock) {
+      BB->eraseFromParent();
+      madeChange = true;
+      removedBlocks = true;
+    }
+  }
 
   //****************************** ASSIGNMENT END ******************************
 

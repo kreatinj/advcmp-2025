@@ -10,7 +10,7 @@ define dso_local i32 @main() #0 {
 entry:
   br label %if.end
 
-if.end:                                           ; preds = %entry, <null operand!>
+if.end:                                           ; preds = %entry
   %call = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef 1, i32 noundef 3, i32 noundef 5)
   ret i32 0
 }
